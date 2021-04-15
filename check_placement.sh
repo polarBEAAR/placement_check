@@ -1,34 +1,58 @@
 #!/bin/bash
 
-# openstack resource provider show --allocation 0ca66b10-43e0-41e6-a30c-39b3719c0246 -f yaml  | grep -E -o "[[:alnum:]]{8}[-]([[:alnum:]]{4}[-]){3}[[:alnum:]]{12}" 
+exec 2>error_list
+#exec 1>output
+
+rm completed
+
+row="%-8s %-40s %-30s %-10d %-10d %-10d \n"
+printf "%-8s %-40s %-30s %-10s %-10s %-10s \n" "Host" "Allocation ID" "Result" "RAM" "CPU" "Disk"
+
+memory=0
+cpu=0
+disk=0
+
+
+if !  [ -n "$1" ]
+then
+    list=$(cat /etc/hosts | grep -o "\<cmp0[0-9]*$")
+else
+    list=$@
+fi
+
 
 host_list=$(openstack resource provider list)
-
-
-exec 2>error_list
-exec 1>output
-
-
-for host in $(cat /etc/hosts | grep -E -o "cmp[0-9]{3}")
-#for host in cmp001 cmp002
+for host in $(echo "$list")
 do
-#    echo $host
     host_id=$(echo "$host_list" | grep $host | awk '{print $2}')
     server_list=$(openstack server list --all --host $host -c 'ID')
-    for allocation in $(openstack resource provider show --allocation $host_id -f yaml | grep -v "uuid"  | grep -E -o "[[:alnum:]]{8}[-]([[:alnum:]]{4}[-]){3}[[:alnum:]]{12}")
+    allocation_list=$(openstack resource provider show --allocation $host_id -f yaml)
+
+    for allocation in $(echo "$allocation_list" | grep -v "uuid"  | grep -E -o "[[:alnum:]]{8}[-]([[:alnum:]]{4}[-]){3}[[:alnum:]]{12}")
     do
-        #if ! (echo "$allocation_output" | grep -q $host)
         if ! (echo "$server_list" | grep -q $allocation )
         then
             allocation_output=$(openstack server show $allocation)
+
+            current_ram=$(echo "$allocation_list" | grep -A 4 $allocation | grep -i memory | awk '{print $2}')
+            let " memory = memory + current_ram "
+
+            current_cpu=$(echo "$allocation_list" | grep -A 4 $allocation | grep -i cpu | awk '{print $2}')
+            let " cpu = cpu + current_cpu "
+
+            current_disk=$(echo "$allocation_list" | grep -A 4 $allocation | grep -i disk | awk '{print $2}')
+            let "disk = disk + current_disk"
+            
             if ! (echo "$allocation_output" | grep -q host) 
             then
-                result="instance doesn't exist anymore. remove it manually from DB"
+                result="doesn't exist anymore"
             else 
                 result=$(echo "$allocation_output" | grep -w host | awk '{print $4}')
             fi
-           echo -e "$host\t$allocation\t$result"
+            printf "$row" $host $allocation "$result" $current_ram $current_cpu $current_disk
         fi
     done
 done
+printf "%-80s %-10d %-10d %-10d \n" "Total" $memory $cpu $disk
 
+touch completed
