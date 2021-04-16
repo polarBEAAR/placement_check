@@ -28,9 +28,9 @@ do
     server_list=$(openstack server list --all --host $host -c 'ID')
     allocation_list=$(openstack resource provider show --allocation $host_id -f yaml)
 
-    for allocation in $(echo "$allocation_list" | grep -v "uuid"  | grep -E -o "[[:alnum:]]{8}[-]([[:alnum:]]{4}[-]){3}[[:alnum:]]{12}")
+    for allocation in $(echo "$allocation_list" | grep -v "uuid"  | grep -E -o "[[:alnum:]]{8}[-]([[:alnum:]]{4}[-]){3}[[:alnum:]]{12}")    ### took all allocation for the host
     do
-        if ! (echo "$server_list" | grep -q $allocation )
+        if ! (echo "$server_list" | grep -q $allocation )                                                                                   ### took only allocation which are not presented on the host (origin server was migrated )
         then
             allocation_output=$(openstack server show $allocation)
 
@@ -43,7 +43,7 @@ do
             current_disk=$(echo "$allocation_list" | grep -A 4 $allocation | grep -i disk | awk '{print $2}')
             let "disk = disk + current_disk"
             
-            if ! (echo "$allocation_output" | grep -q host) 
+            if ! (echo "$allocation_output" | grep -q host)                                                                                 ### took only allocation which doesn't exist anymore. ( origin server was deleted ) 
             then
                 result="doesn't exist anymore"
             else 
