@@ -1,2 +1,3 @@
-output
-error_list
+delete_list
+*.log
+test*
